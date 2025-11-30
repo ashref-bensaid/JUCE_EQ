@@ -183,8 +183,8 @@ bool EQ_PluginAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* EQ_PluginAudioProcessor::createEditor()
 {
-   // return new EQ_PluginAudioProcessorEditor (*this);
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new EQ_PluginAudioProcessorEditor (*this);
+   // return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -193,6 +193,9 @@ void EQ_PluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+
+    juce::MemoryOutputStream mos(destData, true);
+    apvts.state.writeToStream(mos);
 }
 
 void EQ_PluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
