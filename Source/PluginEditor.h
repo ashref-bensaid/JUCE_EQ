@@ -11,24 +11,88 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-struct CustomRotarySlider : juce::Slider
-{
-    CustomRotarySlider() : juce::Slider(juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag,
-        juce::Slider::TextEntryBoxPosition::NoTextBox)
-    {
 
+
+struct LookAndFeel : juce::LookAndFeel_V4
+{
+    void drawRotarySlider(juce::Graphics&,
+        int x, int y, int width, int height,
+        float sliderPosPrportional,
+        float rotaryStartAngle,
+        float rotaryEndAngle,
+        juce::Slider&) override;
+
+};
+
+struct RotarySliderWithLabels : juce::Slider
+{
+    RotarySliderWithLabels(juce::RangedAudioParameter& rap, const juce::String& unitSuffix) : 
+        juce::Slider(juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag,
+        juce::Slider::TextEntryBoxPosition::NoTextBox),
+        param(&rap),
+        suffix(unitSuffix)
+    {
+        setLookAndFeel(&lnf);
 
     }
+    ~RotarySliderWithLabels()
+    {
+        setLookAndFeel(nullptr);
+
+    }
+    
+    struct LabelPos
+    {
+        float pos;
+        juce::String label;
+    };
+
+    juce::Array<LabelPos> labels;
+
+    void paint(juce::Graphics& g) override;
+    juce::Rectangle<int> getSliderBounds() const;
+    int getTextHeight() const { return 14; }
+    juce::String getDisplayString() const;
+
+private:
+    LookAndFeel lnf;
+    juce::RangedAudioParameter* param;
+    juce::String suffix;
 
 
+};
+
+struct ResponseCurveComponent : juce::Component,
+    juce::AudioProcessorParameter::Listener,
+    juce::Timer
+{
+    ResponseCurveComponent(EQ_PluginAudioProcessor&);
+    ~ResponseCurveComponent();
+    void parameterValueChanged(int parameterIndex, float newValue) override;
+    void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override {}
+    void timerCallback() override;
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+private:
+    EQ_PluginAudioProcessor& audioProcessor;
+    juce::Atomic<bool> parametersChanged{ false };
+
+    MonoChain monoChain;
+
+    void updateChain();
+
+    juce::Image background;
+
+    juce::Rectangle<int> getRenderArea();
+
+
+    juce::Rectangle<int> getAnalysisArea();
 };
 
 //==============================================================================
 /**
 */
-class EQ_PluginAudioProcessorEditor  : public juce::AudioProcessorEditor,
-juce::AudioProcessorParameter::Listener,
-juce::Timer
+class EQ_PluginAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:
     EQ_PluginAudioProcessorEditor (EQ_PluginAudioProcessor&);
@@ -37,40 +101,23 @@ public:
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
-
-   void parameterValueChanged(int parameterIndex, float newValue) override;
-
-    /** Indicates that a parameter change gesture has started.
-
-        E.g. if the user is dragging a slider, this would be called with gestureIsStarting
-        being true when they first press the mouse button, and it will be called again with
-        gestureIsStarting being false when they release it.
-
-        IMPORTANT NOTE: This will be called synchronously, and many audio processors will
-        call it during their audio callback. This means that not only has your handler code
-        got to be completely thread-safe, but it's also got to be VERY fast, and avoid
-        blocking. If you need to handle this event on your message thread, use this callback
-        to trigger an AsyncUpdater or ChangeBroadcaster which you can respond to later on the
-        message thread.
-    */
-    void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override { }
-    void timerCallback() override;
-
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     EQ_PluginAudioProcessor& audioProcessor;
 
-    juce::Atomic<bool> parametersChanged{ false };
 
 
-    CustomRotarySlider peakFreqSlider,
+
+    RotarySliderWithLabels peakFreqSlider,
         peakGainSlider,
         peakQualitySlider,
         lowCutFreqSlider,
         highCutFreqSlider,
         lowCutSlopeSlider,
         highCutSlopeSlider;
+
+    ResponseCurveComponent responseCurveComponent;
 
     using APVTS = juce::AudioProcessorValueTreeState;
     using Attachment = APVTS::SliderAttachment;
@@ -86,7 +133,7 @@ private:
 
 
     std::vector<juce::Component*> getComps();
-    MonoChain monoChain;
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ_PluginAudioProcessorEditor)
 };
