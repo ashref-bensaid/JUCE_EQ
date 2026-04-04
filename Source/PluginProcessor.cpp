@@ -105,7 +105,13 @@ void EQ_PluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     leftChain.prepare(spec);
     rightChain.prepare(spec);
 
-  
+    updateFilters();
+
+    leftChannelFifo.prepare(samplesPerBlock);
+    rightChannelFifo.prepare(samplesPerBlock);
+
+
+    
 
     
 }
@@ -173,6 +179,11 @@ void EQ_PluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     leftChain.process(leftContext);
     rightChain.process(rightContext);
+
+
+    leftChannelFifo.update(buffer);
+    rightChannelFifo.update(buffer);
+
 }
 
 //==============================================================================
