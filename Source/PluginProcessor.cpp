@@ -111,7 +111,11 @@ void EQ_PluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     rightChannelFifo.prepare(samplesPerBlock);
 
 
-    
+    osc.initialise([](float x) { return std::sin(x);  });
+
+    spec.numChannels = getTotalNumOutputChannels();
+    osc.prepare(spec);
+    osc.setFrequency(200);
 
     
 }
@@ -167,12 +171,17 @@ void EQ_PluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     updateFilters();
 
-
+    
 
     juce::dsp::AudioBlock<float> block(buffer);
 
+   /* buffer.clear();
+
+    juce::dsp::ProcessContextReplacing<float> stereoContext(block);
+    osc.process(stereoContext);*/
+    
     auto leftBlock = block.getSingleChannelBlock(0);
-    auto rightBlock = block.getSingleChannelBlock(1);
+    auto rightBlock = block.getSingleChannelBlock(1); 
 
     juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
     juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
