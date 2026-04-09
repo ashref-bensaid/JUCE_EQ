@@ -179,6 +179,11 @@ struct LookAndFeel : juce::LookAndFeel_V4
         float rotaryEndAngle,
         juce::Slider&) override;
 
+    void drawToggleButton(juce::Graphics &g,
+        juce::ToggleButton & toggleButton,
+        bool shouldDrawButtonAsHighlited,
+        bool shouldDrawButtonasDown) override;
+
 };
 
 struct RotarySliderWithLabels : juce::Slider
@@ -256,6 +261,12 @@ struct ResponseCurveComponent : juce::Component,
     void timerCallback() override;
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void toggleAnalysisEnablement(bool enabled)
+    {
+
+        shouldShowFFTAnalysis = enabled;
+
+    }
 private:
     EQ_PluginAudioProcessor& audioProcessor;
     juce::Atomic<bool> parametersChanged{ false };
@@ -273,10 +284,36 @@ private:
 
     PathProducer leftPathProducer, rightPathProducer;
 
-
+    bool shouldShowFFTAnalysis;
 };
 
 //==============================================================================
+struct PowerButton : juce::ToggleButton{};
+struct AnalyzerButton : juce::ToggleButton{
+    
+    void resized() override
+    {
+
+        auto bounds = getLocalBounds();
+        auto insetRect = bounds.reduced(2);
+
+        randomPath.clear();
+        juce::Random r;
+
+        randomPath.startNewSubPath(insetRect.getX(),
+            insetRect.getY() + insetRect.getHeight() * r.nextFloat());
+
+        for (auto x = insetRect.getX() + 1; x < insetRect.getRight(); x += 2)
+        {
+            randomPath.lineTo(x,
+                insetRect.getY() + insetRect.getHeight() * r.nextFloat());
+
+        }
+    }
+
+    juce::Path randomPath;
+
+};
 /**
 */
 class EQ_PluginAudioProcessorEditor  : public juce::AudioProcessorEditor
@@ -319,7 +356,8 @@ private:
 
 
 
-    juce::ToggleButton lowcutBypassButton, peakBypassButton, highcutBypassButton, analyzerEnabledButton;
+    PowerButton lowcutBypassButton, peakBypassButton, highcutBypassButton;
+    AnalyzerButton   analyzerEnabledButton;
 
 
     using ButtonAttachment = APVTS::ButtonAttachment;
@@ -334,6 +372,7 @@ private:
     
     
     std::vector<juce::Component*> getComps();
+    LookAndFeel lnf;
    
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EQ_PluginAudioProcessorEditor)

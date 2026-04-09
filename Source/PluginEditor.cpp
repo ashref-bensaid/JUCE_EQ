@@ -24,10 +24,13 @@ void LookAndFeel::drawRotarySlider(juce::Graphics& g,
 
     auto bounds = Rectangle<float>(x, y, width, height); 
 
-    g.setColour(Colour(97u, 18u, 167u));
+    auto enabled = slider.isEnabled();
+
+
+    g.setColour(enabled ? Colour(97u, 18u, 167u) : Colours::darkgrey);
     g.fillEllipse(bounds);
 
-    g.setColour(Colour(255u, 154u, 1u));
+    g.setColour(enabled ? Colour(255u, 154u, 1u) : Colours::grey);
     g.drawEllipse(bounds, 1.f);
     if (auto* rswl = dynamic_cast<RotarySliderWithLabels*>(&slider))
     {
@@ -57,16 +60,88 @@ void LookAndFeel::drawRotarySlider(juce::Graphics& g,
         r.setSize(strWidth + 4, rswl->getTextHeight() + 2);
         r.setCentre(bounds.getCentre());
 
-        g.setColour(Colours::black);
+        g.setColour(enabled ? Colours::black : Colours::grey);
         g.fillRect(r);
 
-        g.setColour(Colours::white);
+        g.setColour(enabled ? Colours::white : Colours::lightgrey);
         g.drawFittedText(text, r.toNearestInt(), juce::Justification::centred, 1);
 
     }
 
 
 
+}
+
+
+void LookAndFeel::drawToggleButton(juce::Graphics& g,
+    juce::ToggleButton& toggleButton,
+    bool shouldDrawButtonAsHighlited,
+    bool shouldDrawButtonasDown)
+
+{
+    using namespace juce;
+
+    if (auto* pb = dynamic_cast<PowerButton*>(&toggleButton))
+    {
+
+    Path powerButton;
+
+    auto bounds = toggleButton.getLocalBounds();
+
+    g.setColour(Colours::red);
+    g.drawRect(bounds);
+    auto size = jmin(bounds.getWidth(), bounds.getHeight()) - JUCE_LIVE_CONSTANT(4);
+    auto r = bounds.withSizeKeepingCentre(size, size).toFloat();
+
+    float ang = 30.f;
+    size -= JUCE_LIVE_CONSTANT(4);
+
+    powerButton.addCentredArc(r.getCentreX(), r.getCentreY(),
+        size * 0.5, size * 0.5, 0.f, 
+        degreesToRadians(ang), degreesToRadians(360.f - ang),
+        true);
+
+    powerButton.startNewSubPath(r.getCentreX(), r.getCentreY());
+    powerButton.lineTo(r.getCentre());
+
+    PathStrokeType pst (2.f, PathStrokeType::JointStyle::curved);
+
+    auto color = toggleButton.getToggleState() ? Colours::dimgrey : Colour(0u, 172u, 1u);
+
+    g.setColour(color);
+    g.strokePath(powerButton, pst);
+    g.drawEllipse(r, 2);
+
+
+    }
+
+    else if (auto* analyzerButton = dynamic_cast<AnalyzerButton*>(&toggleButton))
+    {
+        auto color = !toggleButton.getToggleState() ? Colours::dimgrey : Colour(0u, 172u, 1u);
+
+        g.setColour(color);
+
+        auto bounds = toggleButton.getLocalBounds();
+        g.drawRect(bounds);
+
+       // auto insetRect = bounds.reduced(2);
+
+       // Path randomPath;
+
+/*        Random r;
+
+        randomPath.startNewSubPath(insetRect.getX(),
+            insetRect.getY() + insetRect.getHeight() * r.nextFloat());
+
+        for (auto x = insetRect.getX() + 1; x < insetRect.getRight(); x += 2)
+        {
+            randomPath.lineTo(x,
+                insetRect.getY() + insetRect.getHeight() * r.nextFloat());
+
+        }
+        */
+        g.strokePath(analyzerButton->randomPath, PathStrokeType(1.f));
+    }
 }
 
 
@@ -282,13 +357,14 @@ void PathProducer::process(juce::Rectangle<float> fftBounds, double sampleRate)
 void ResponseCurveComponent::timerCallback()
 {
 
+    if( shouldShowFFTAnalysis)
+    {
+        auto fftBounds = getAnalysisArea().toFloat();
+        auto sampleRate = audioProcessor.getSampleRate();
 
-    auto fftBounds = getAnalysisArea().toFloat();
-    auto sampleRate = audioProcessor.getSampleRate();
-
-    leftPathProducer.process(fftBounds, sampleRate);
-    rightPathProducer.process(fftBounds, sampleRate);
-
+        leftPathProducer.process(fftBounds, sampleRate);
+        rightPathProducer.process(fftBounds, sampleRate);
+        }
 
     if (parametersChanged.compareAndSetBool(false, true))
     {
@@ -438,20 +514,22 @@ void ResponseCurveComponent::paint(juce::Graphics& g)
 
     }
 
-    auto leftChannelFFtPath = leftPathProducer.getPath();
-    leftChannelFFtPath.applyTransform(AffineTransform().
-        translation(responseArea.getX(), responseArea.getY()));
+    if (shouldShowFFTAnalysis)
+    {
+        auto leftChannelFFtPath = leftPathProducer.getPath();
+        leftChannelFFtPath.applyTransform(AffineTransform().
+            translation(responseArea.getX(), responseArea.getY()));
      
-    g.setColour(Colours::skyblue);
-    g.strokePath(leftChannelFFtPath, PathStrokeType(1.f));
+        g.setColour(Colours::skyblue);
+        g.strokePath(leftChannelFFtPath, PathStrokeType(1.f));
 
-    auto rightChannelFFtPath = rightPathProducer.getPath();
-    rightChannelFFtPath.applyTransform(AffineTransform().
-        translation(responseArea.getX(), responseArea.getY()));
+        auto rightChannelFFtPath = rightPathProducer.getPath();
+        rightChannelFFtPath.applyTransform(AffineTransform().
+            translation(responseArea.getX(), responseArea.getY()));
 
-    g.setColour(Colours::rebeccapurple);
-    g.strokePath(rightChannelFFtPath, PathStrokeType(1.f));
-
+        g.setColour(Colours::rebeccapurple);
+        g.strokePath(rightChannelFFtPath, PathStrokeType(1.f));
+    }
     
     g.setColour(Colours::lightgoldenrodyellow);
     g.drawRoundedRectangle(getRenderArea().toFloat(), 4.f, 1.f);
@@ -645,7 +723,7 @@ EQ_PluginAudioProcessorEditor::EQ_PluginAudioProcessorEditor (EQ_PluginAudioProc
     lowcutBypassButtonAttachment(audioProcessor.apvts, "LowCut Bypassed", lowcutBypassButton),
     peakBypassButtonAttachment(audioProcessor.apvts, "Peak Bypassed", peakBypassButton),
     highcutBypassButtonAttachment(audioProcessor.apvts, "HighCut Bypassed", highcutBypassButton),
-    analyzerEnabledButtonAttachment(audioProcessor.apvts, "Analzer Enabled", analyzerEnabledButton)
+    analyzerEnabledButtonAttachment(audioProcessor.apvts, "Analyzer Enabled", analyzerEnabledButton)
 
 
     {
@@ -678,15 +756,76 @@ EQ_PluginAudioProcessorEditor::EQ_PluginAudioProcessorEditor (EQ_PluginAudioProc
 
 
     }
-   
+    
+    peakBypassButton.setLookAndFeel(&lnf);
+    lowcutBypassButton.setLookAndFeel(&lnf);
+    highcutBypassButton.setLookAndFeel(&lnf);
+    analyzerEnabledButton.setLookAndFeel(&lnf);
 
+    auto safePtr = juce::Component::SafePointer<EQ_PluginAudioProcessorEditor>(this);
+    peakBypassButton.onClick = [safePtr]()
+        {
+            if (auto* comp = safePtr.getComponent())
+            {
+                auto bypassed = comp->peakBypassButton.getToggleState();
+
+                comp->peakFreqSlider.setEnabled(!bypassed);
+                comp->peakGainSlider.setEnabled(!bypassed);
+                comp->peakQualitySlider.setEnabled(!bypassed);
+
+            }
+
+        };
+
+    lowcutBypassButton.onClick = [safePtr]()
+        {
+            if (auto* comp = safePtr.getComponent())
+            {
+                auto bypassed = comp->lowcutBypassButton.getToggleState();
+
+                comp->lowCutFreqSlider.setEnabled(!bypassed);
+                comp->lowCutSlopeSlider.setEnabled(!bypassed);
+
+            }
+
+
+        };
+
+
+    highcutBypassButton.onClick = [safePtr]()
+        {
+            if (auto* comp = safePtr.getComponent())
+            {
+                auto bypassed = comp->highcutBypassButton.getToggleState();
+
+                comp->highCutFreqSlider.setEnabled(!bypassed);
+                comp->highCutSlopeSlider.setEnabled(!bypassed);
+
+            }
+
+
+        };
+
+    analyzerEnabledButton.onClick = [safePtr]()
+        {
+            if (auto* comp = safePtr.getComponent())
+            {
+                auto enabled = comp->analyzerEnabledButton.getToggleState();
+                comp->responseCurveComponent.toggleAnalysisEnablement(enabled);
+
+            }
+
+        };
 
     setSize (800, 600);
 }
 
 EQ_PluginAudioProcessorEditor::~EQ_PluginAudioProcessorEditor()
 {
-    
+    peakBypassButton.setLookAndFeel(nullptr);
+    lowcutBypassButton.setLookAndFeel(nullptr);
+    highcutBypassButton.setLookAndFeel(nullptr);
+    analyzerEnabledButton.setLookAndFeel(nullptr);
 
 
 }
@@ -706,6 +845,15 @@ void EQ_PluginAudioProcessorEditor::resized()
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor..
     auto bounds = getLocalBounds();
+    
+    auto analyzerEnabledArea = bounds.removeFromTop(25);
+    analyzerEnabledArea.setWidth(100);
+    analyzerEnabledArea.setX(5);
+    analyzerEnabledArea.removeFromTop(2);
+
+    analyzerEnabledButton.setBounds(analyzerEnabledArea);
+
+    bounds.removeFromTop(5);
     float hRatio = 25.f / 100.f; // JUCE_LIVE_CONSTANT(33) / 100.f;
     auto responseArea = bounds.removeFromTop(bounds.getHeight() * hRatio);
 
